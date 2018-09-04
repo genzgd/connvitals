@@ -14,3 +14,10 @@ build
 dist
 *.egg-info
 
+# Pycharm/Intellij files
+.idea
+*.iml
+
+# Virtual env
+venv
+

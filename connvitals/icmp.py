@@ -16,7 +16,7 @@ or from a raw bytestring that is presumably an ICMP packet recived from an exter
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# See the License for the specific language governing permissions andlko098
 # limitations under the License.
 
 import socket
@@ -28,8 +28,11 @@ from . import utils
 
 # Gets our local IP address, for calculating ICMPv6 checksums
 with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as s:
-	s.connect(("2001:4998:c:1023::4", 1)) #yahoo.com public IPv6 address
-	LADDR = socket.inet_pton(s.family, s.getsockname()[0])
+	try:
+		s.connect(("2001:4998:c:1023::4", 1)) #yahoo.com public IPv6 address
+		LADDR = socket.inet_pton(s.family, s.getsockname()[0])
+	except OSError as e:
+		LADDR = 0
 
 LADDR = LADDR # 'LADDR' is now a global value
 
