@@ -126,10 +126,11 @@ class Tracer():
 					elif pkt[20] in {11,3}:
 						print("ID: {}  Someone else's {} packet, id {}".format(self.ID, icmptypes.get_type(pkt), unpack("!H", pkt[50:52])[0]))
 					else:
-						print("Unrecognized packet {}".format(icmptypes.get_type(pkt)))
+						print("ID: {}  Unrecognized packet {}".format(self.ID, icmptypes.get_type(pkt)))
 
 
 			except socket.timeout:
+				print("ID: {} Timeout hop {}".format(self.ID, ttl))
 				ret.append(utils.TraceStep("*", -1))
 			else:
 				ret.append(utils.TraceStep(addr[0], rtt*1000))

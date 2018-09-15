@@ -67,8 +67,8 @@ class TraceBatch:
 					tracker = self.trackers.get(host_id)
 					if tracker and destination == tracker.host.addr:
 						if hop == tracker.current_hop:
-							tracker.receive(address)
 							print("Tracked packet, host_id: {}, hop: {}".format(host_id, hop))
+							tracker.receive(address)
 						else:
 							print("Tracked packet, host_id: {}, expected hop {}, got hop {}".format(host_id, tracker.current_hop, hop))
 					else:
@@ -86,7 +86,7 @@ class TraceBatch:
 			# Adding some data allows us to hack the hop number into the length field of the UDP packet
 			self.sender.sendto(b'x' * tracker.current_hop, (tracker.host[0], tracker.host_id))
 		except OSError as e:
-			tracker.error()
+			tracker.error('Error' + e.strerror)
 		return True
 
 	def complete(self, tracker):
@@ -124,9 +124,10 @@ class TraceTracker:
 		self.current_hop += 1
 		if self.batch.send(self):
 			self.last_sent_timestamp = time.time()
-			self.timeout_handle = loop.call_later(0.05, self.error)
+			self.timeout_handle = loop.call_later(0.05, self.error, 'Timeout')
 
-	def error(self):
+	def error(self, name):
+		print("{}, host_id: {}, hop: {}".format(name, self.host_id, self.current_hop))
 		self.results.append(utils.TraceStep("*", -1))
 		self.send()
 
