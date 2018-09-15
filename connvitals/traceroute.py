@@ -19,6 +19,8 @@ import socket
 import struct
 from struct import unpack
 import time
+
+from connvitals import icmptypes
 from . import utils
 
 class Tracer():
@@ -119,7 +121,13 @@ class Tracer():
 					rtt = time() - rtt
 
 					if self.isMyTraceResponse(pkt):
+						print("ID: {}  Tracked packet, hop {}".format(self.ID, ttl))
 						break
+					elif pkt[20] in {11,3}:
+						print("ID: {}  Someone else's {} packet, id {}".format(self.ID, icmptypes.get_type(pkt), unpack("!H", pkt[50:52])[0]))
+					else:
+						print("Unrecognized packet {}".format(icmptypes.get_type(pkt)))
+
 
 			except socket.timeout:
 				ret.append(utils.TraceStep("*", -1))

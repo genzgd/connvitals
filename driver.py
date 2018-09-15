@@ -8,9 +8,9 @@ batch = TraceBatch()
 def process_results(results):
 	for result in results:
 		for step in result:
-			print(str(step))
+			print(step)
 	batch.close()
 
 
-batch.trace(config.CONFIG.HOSTS, process_results, 30)
+batch.trace(config.CONFIG.HOSTS, process_results)
 

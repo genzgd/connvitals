@@ -2,6 +2,7 @@ import asyncio
 import socket
 import time
 
+from connvitals import icmptypes
 from connvitals import utils
 
 
@@ -26,14 +27,14 @@ def get_intended_destination(packet):
 
 
 class TraceBatch:
-	def __init__(self):
+	def __init__(self, hops=30, loop_time=0.05, loop_count=-1):
 		self.completed = 0
 		self.trackers = {}
 		self.callback = None
 		self.open = False
-		self.hops = 30
-		self.loop_count = 0
-		self.loop_time = 0
+		self.hops = hops
+		self.loop_count = loop_count
+		self.loop_time = loop_time
 		self.sender = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=17)
 		self.receiver = socket.socket(family=socket.AF_INET, type=socket.SOCK_RAW, proto=socket.IPPROTO_ICMP)
 		self.receiver.setblocking(False)
@@ -42,12 +43,9 @@ class TraceBatch:
 		self.sender.close()
 		self.receiver.close()
 
-	def trace(self, hosts, callback = None, hops=30, loop_time=0.05, loop_count=-1):
-		self.loop_count = loop_count
-		self.loop_time = loop_time
+	def trace(self, hosts, callback = None):
 		self.trackers = {host_id + BASE_PORT: TraceTracker(host_id + BASE_PORT, host, self) for host_id, host in enumerate(hosts.values())}
 		self.callback = callback
-		self.hops = hops
 		self.open = True
 		asyncio.ensure_future(self.listen(), loop=loop)
 		loop.run_forever()
@@ -57,16 +55,26 @@ class TraceBatch:
 		for tracker in self.trackers.values():
 			tracker.send()
 
-	async def listen(self):
+	@asyncio.coroutine
+	def listen(self):
 		self._start_trace()
 		while self.open:
-			packet, address = await sock_recvfrom(self.receiver, 1024)
-			if self.open and is_trace_response(packet):
-				destination = get_intended_destination(packet)
-				host_id, hop = get_id_and_hop(packet)
-				tracker = self.trackers.get(host_id)
-				if tracker and destination == tracker.host.addr and hop == tracker.current_hop:
-					tracker.receive(address)
+			packet, address = yield from sock_recvfrom(self.receiver, 1024)
+			if self.open:
+				if is_trace_response(packet):
+					destination = get_intended_destination(packet)
+					host_id, hop = get_id_and_hop(packet)
+					tracker = self.trackers.get(host_id)
+					if tracker and destination == tracker.host.addr:
+						if hop == tracker.current_hop:
+							tracker.receive(address)
+							print("Tracked packet, host_id: {}, hop: {}".format(host_id, hop))
+						else:
+							print("Tracked packet, host_id: {}, expected hop {}, got hop {}".format(host_id, tracker.current_hop, hop))
+					else:
+						print("Unrecognized {} packet, host_id {}, hop: {}".format(icmptypes.get_type(packet), host_id, hop))
+				else:
+					print("Nontrace packet: {}", icmptypes.get_type(packet))
 
 	def send(self, tracker):
 		if tracker.current_hop > self.hops:
@@ -95,7 +103,7 @@ class TraceBatch:
 			loop.stop()
 			self.open = False
 			if self.callback:
-				self.callback([utils.Trace(tracker.results) for tracker in self.trackers.values()])
+				self.callback([(tracker.host.addr, utils.Trace(tracker.results)) for tracker in self.trackers.values()])
 
 
 class TraceTracker:
@@ -133,7 +141,8 @@ class TraceTracker:
 
 
 # From suggestion in this thread:  https://bugs.python.org/issue26395
-async def sock_recvfrom(nonblocking_sock, *pos, **kw):
+@asyncio.coroutine
+def sock_recvfrom(nonblocking_sock, *pos, **kw):
 	while True:
 		try:
 			return nonblocking_sock.recvfrom(*pos, **kw)
@@ -141,6 +150,6 @@ async def sock_recvfrom(nonblocking_sock, *pos, **kw):
 			future = asyncio.Future(loop=loop)
 			loop.add_reader(nonblocking_sock.fileno(), future.set_result, None)
 			try:
-				await future
+				yield from future
 			finally:
 				loop.remove_reader(nonblocking_sock.fileno())

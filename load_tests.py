@@ -1,11 +1,11 @@
 import time
 import random
+import multiprocessing.pool
 
 from connvitals import utils
 
 from connvitals.multitrace import TraceBatch
 from connvitals.traceroute import Tracer
-
 
 seed = 9273
 count = 10
@@ -26,13 +26,22 @@ def random_ip():
 
 
 def generate_hosts():
-	#random.seed(seed)
+	random.seed(seed)
 	return {ipaddr: utils.getaddr(ipaddr) for ipaddr in (random_ip() for _ in range(count))}
 
 
-def multitrace():
-	batch = TraceBatch()
-	batch.trace(generate_hosts(), loop_count=1, hops=6, callback=lambda *args, **kwargs: batch.close())
+def multi_trace():
+	batch = TraceBatch(hops=6)
+	batch.trace(generate_hosts(), callback=lambda *args, **kwargs: batch.close())
 
 
-multitrace()
+def thread_trace():
+	with multiprocessing.pool.ThreadPool(count) as pool:
+		waitables = [pool.apply_async(run_trace, (host, id + 1)) for id, host in generate_hosts()]
+		for waitable in waitables:
+			waitable.wait()
+		pool.close()
+		pool.join()
+
+
+multi_trace()
