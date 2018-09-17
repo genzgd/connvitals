@@ -61,8 +61,8 @@ class TraceBatch:
 		while self.open:
 			packet, address = yield from sock_recvfrom(self.receiver, 1024)
 			if self.open:
+				destination = get_intended_destination(packet)
 				if is_trace_response(packet):
-					destination = get_intended_destination(packet)
 					host_id, hop = get_id_and_hop(packet)
 					tracker = self.trackers.get(host_id)
 					if tracker and destination == tracker.host.addr:
@@ -72,9 +72,9 @@ class TraceBatch:
 						else:
 							print("Tracked packet, host_id: {}, expected hop {}, got hop {}".format(host_id, tracker.current_hop, hop))
 					else:
-						print("Unrecognized {} packet, host_id {}, hop: {}".format(icmptypes.get_type(packet), host_id, hop))
+						print("Unrecognized {} packet, host_id {}, hop: {} from {}".format(icmptypes.get_type(packet), host_id, hop, destination))
 				else:
-					print("Nontrace packet: {}", icmptypes.get_type(packet))
+					print("Nontrace packet {} from {}".format(icmptypes.get_type(packet), destination))
 
 	def send(self, tracker):
 		if tracker.current_hop > self.hops:
@@ -85,9 +85,10 @@ class TraceBatch:
 		try:
 			# Adding some data allows us to hack the hop number into the length field of the UDP packet
 			self.sender.sendto(b'x' * tracker.current_hop, (tracker.host[0], tracker.host_id))
+			return True
 		except OSError as e:
 			tracker.error('Error' + e.strerror)
-		return True
+			return False
 
 	def complete(self, tracker):
 		tracker.loops += 1
